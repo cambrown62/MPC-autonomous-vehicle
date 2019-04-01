@@ -48,7 +48,7 @@ del = zeros(1,T);
 cte = zeros(1,T);
 
 % initial vehicle states
-v0 = .1;
+v0 = .5;
 x(1) = -.1;
 y(1) = -.1;
 psi(1) = 0;

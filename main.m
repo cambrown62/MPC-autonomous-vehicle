@@ -2,49 +2,25 @@
 
 h = 0.1; % sample time
 N = 10; % prediction horizon
-l_f = 460/2;
-del_upper_bnd = 25*(pi/180);
-del_lower_bnd = -del_upper_bnd;
-acc_upper_bnd = 1;
+L = .460; % length of vehicle
+l_f = L/2; % half length of vehicle
+del_upper_bnd = 25*(pi/180); % steering angle constraints
+del_lower_bnd = -del_upper_bnd; 
+acc_upper_bnd = 1; % acceleration constraints
 acc_lower_bnd = -1;
-v_target = 1;
-
-%% Trajectory Model
-
-% parameters for modelling path as 3rd order polynomial
-a0 = 0;
-a1 = .01;
-a2 = .01;
-a3 = .01;
-
-% calculate y coordinates of the path and desired vehicle heading psi
-% traj_y = @(x) a3*x.^3 + a2*x.^2 + a1*x + a0;
-% desired_psi = @(x) atan(3*a3*x.^2 + 2*a2*x + a1*x);
 
 %% Kinematic Bicycle Model
 
-% model for x, y, heading (psi), velocity of vehicle
-x_kp1 = @(x, v, psi) x + v*cos(psi)*h;
-y_kp1 = @(y, v, psi) y + v*sin(psi)*h;
-psi_kp1 = @(psi, v, del) psi + (v/l_f)*del*h;
-v_kp1 = @(v) v; % assume constant velocity
+% model for x, y, heading (psi), velocity of vehicle, slip angle (beta) at CoG
+x_kp1 = @(x, v, psi, beta) x + v*cos(psi + beta)*h;
+y_kp1 = @(y, v, psi, beta) y + v*sin(psi + beta)*h;
+psi_kp1 = @(psi, v, del, beta) psi + (v/L)*cos(beta)*tan(del)*h;
+v_kp1 = @(v, a) v + a*h;
+beta_kp1 = @(del) atan(l_f*tan(del)/L)
 
 % heading error and cross track error
 heading_err = @(desired_psi, psi) desired_psi - psi;
-crosstrack_err = @(path_y, y) path_y - y;
-
-%% Cost Function
-
-% weights for the cost function
-w_cte = 1;
-w_psi_err = 1;
-w_v = 1;
-w_del = 1;
-w_a = 1;
-w_del_dot = 1;
-w_jerk = 1;
-
-J = @(del)
+crosstrack_err = @(path_y, y, path_x, x) sqrt((path_x-x)^2 + (path_y-y)^2);
 
 % coords for entire path (we are given this by motion planner)
 path_x = [0:.1:10];
@@ -59,7 +35,7 @@ acc0 = 0;
 psi0 = 0;
 %%del0 = 0;
 psi_err0 = heading_err(desired_psi(1), psi0);
-cte0 = crosstrack_err(path_y(1), y0);
+cte0 = crosstrack_err(path_y(1), y0, path_x(1), x0);
 
 x_out = [x0 []];
 y_out = [y0 []];
@@ -69,38 +45,4 @@ psi_out = [psi0 []];
 del_out = [];
 psi_err = [psi_err0 []];
 cte_out = [cte0 []];
-
-x_pred = [x0 zeros(1,N-1)];
-y_pred = [y0 zeros(1,N-1)];
-psi_pred = [psi0 zeros(1,N-1)];
-v_pred = [v0 zeros(1,N-1)];
-cte_pred = [cte0 zeros(1,N-1)];
-psi_err_pred = [psi_err0 zeros(1,N-1)];
-
-
-% figure(1)
-% plot(path_x, path_y, '*')
-
-for t = 1:(length(path_x)-6)
-    
-    x_pred(1) = x_out(t);
-    y_pred(1) = y_out(t);
-    psi_pred(1) = psi_out(t);
-    %v_pred(1) = v_out(t);
-    cte_pred(1) = cte_out(t);
-    psi_err_pred(1) = psi_err_out(t);
-    
-    for i = 2:N
-        x_pred(i) = x_kp1(x_pred(i-1), v0, psi_pred(i-1));
-        y_pred(i) = y_kp1(y_pred(i-1), v0, psi_pred(i-1));
-        psi_pred(i) = psi_kp1(psi_pred(i-1), v0, del);
-        %v_pred(i) = v_kp1(v_pred(i-1), acc);
-        psi_err(i) = heading_err( desired_psi(), psi_pred(i));
-        cte_pred(i) = crosstrack_error(path_y(), y_pred(i));
-        
-        
-        
-    end
-    
-end
 
